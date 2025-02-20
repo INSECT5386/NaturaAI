@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>챗봇</title>
+    <style>
+        /* 간단한 스타일 */
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #chatlogs {
+            width: 100%;
+            max-width: 600px;
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .chat-bubble {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background-color: #d1e7ff;
+            align-self: flex-end;
+        }
+
+        .ai-message {
+            background-color: #f1f1f1;
+            align-self: flex-start;
+        }
+
+        #typingIndicator {
+            display: none;
+            font-size: 14px;
+            color: #999;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            max-width: 600px;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="chatlogs"></div>
+    <div id="typingIndicator">챗봇이 타이핑 중...</div>
+    <input type="text" id="userInput" placeholder="메시지를 입력하세요..." />
+    <button id="sendMessageBtn">보내기</button>
+    <button id="clearChatBtn">채팅 초기화</button>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-node"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const sendMessageBtn = document.getElementById('sendMessageBtn');
+            const userInput = document.getElementById('userInput');
+            const chatlogs = document.getElementById('chatlogs');
+            const typingIndicator = document.getElementById('typingIndicator');
+            const clearChatBtn = document.getElementById('clearChatBtn');
+
+            sendMessageBtn.addEventListener('click', sendMessage);
+            userInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            clearChatBtn.addEventListener('click', clearChat);
+
+            function sendMessage() {
+                const userText = userInput.value.trim();
+                if (userText === '') return;
+
+                appendMessage(userText, 'user-message');
+                userInput.value = '';
+                userInput.focus();
+                scrollToBottom();
+
+                typingIndicator.style.display = 'block'; // 타이핑 인디케이터 표시
+
+                fetchChatbotResponse(userText);
+            }
+
+            function appendMessage(message, type) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('chat-bubble', type);
+                messageElement.innerText = message;
+                chatlogs.appendChild(messageElement);
+                scrollToBottom();
+            }
+
+            function scrollToBottom() {
+                chatlogs.scrollTop = chatlogs.scrollHeight;
+            }
+
+            function fetchChatbotResponse(userText) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30초 타임아웃
+
+                fetch('https://orange-bar-f327.myageu4.workers.dev/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ inputs: userText }),
+                    signal: controller.signal
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('서버 응답이 정상적이지 않습니다');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    clearTimeout(timeoutId); // 타임아웃 취소
+                    typingIndicator.style.display = 'none';
+
+                    const aiText = data.generated_text || 'AI 응답을 받을 수 없습니다.';
+                    appendMessage(aiText, 'ai-message');
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId); // 에러 발생 시 타임아웃 취소
+                    console.error('에러:', error);
+                    typingIndicator.style.display = 'none';
+                    appendMessage('에러가 발생했습니다. 다시 시도해주세요.', 'ai-message');
+                });
+            }
+
+            function clearChat() {
+                chatlogs.innerHTML = '';
+            }
+        });
+    </script>
+
+</body>
+</html>
